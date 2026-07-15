@@ -35,6 +35,12 @@ export default function Poll() {
     const existing = JSON.parse(localStorage.getItem('pieriot-polls') || '[]')
     existing.push({ answers, at: new Date().toISOString() })
     localStorage.setItem('pieriot-polls', JSON.stringify(existing))
+    pendo.track('experience_rating_submitted', {
+      crustRating: answers.crust,
+      flavorRating: answers.flavor,
+      shippingRating: answers.shipping,
+      reorderIntent: answers.reorder,
+    })
     setSubmitted(true)
   }
 

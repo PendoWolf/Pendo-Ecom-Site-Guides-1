@@ -61,7 +61,18 @@ export default function Cart() {
                     <button
                       type="button"
                       className="text-link"
-                      onClick={() => removeItem(item.lineId)}
+                      onClick={() => {
+                        pendo.track('item_removed_from_cart', {
+                          productId: item.productId,
+                          productName: item.name,
+                          size: item.size,
+                          crust: item.crust,
+                          quantity: item.quantity,
+                          unitPrice: item.price,
+                          cartItemCount: items.length,
+                        })
+                        removeItem(item.lineId)
+                      }}
                     >
                       Remove
                     </button>

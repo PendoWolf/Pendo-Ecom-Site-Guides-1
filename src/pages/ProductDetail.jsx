@@ -37,6 +37,15 @@ export default function ProductDetail() {
       { ...pie, price: unitPrice },
       { size, crust, quantity },
     )
+    pendo.track('product_added_to_cart', {
+      productId: pie.id,
+      productName: pie.name,
+      category: pie.category,
+      size,
+      crust,
+      quantity,
+      unitPrice,
+    })
     setAdded(true)
     window.setTimeout(() => setAdded(false), 2200)
   }

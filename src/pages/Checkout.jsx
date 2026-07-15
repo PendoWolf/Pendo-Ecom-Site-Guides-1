@@ -63,6 +63,16 @@ export default function Checkout() {
       placedAt: new Date().toISOString(),
     }
     sessionStorage.setItem('pieriot-last-order', JSON.stringify(order))
+    pendo.track('order_placed', {
+      orderId,
+      itemCount: items.length,
+      subtotal,
+      shipping,
+      total,
+      hasDeliveryNotes: Boolean(profile.deliveryNotes),
+      shippingCity: profile.city,
+      shippingState: profile.state,
+    })
     clearCart()
     navigate(`/success/${orderId}`)
   }
