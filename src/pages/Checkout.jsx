@@ -37,6 +37,14 @@ export default function Checkout() {
     setError('')
 
     if (!hasShippingAddress) {
+      if (window.pendo) {
+        window.pendo.track('checkout_validation_failed', {
+          failureReason: 'missing_shipping_address',
+          hasShippingAddress: false,
+          itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
+          cartTotal: total,
+        })
+      }
       setError('Save a complete shipping address on your profile before placing an order.')
       return
     }
@@ -47,6 +55,14 @@ export default function Checkout() {
       !payment.expiry.trim() ||
       payment.cvc.trim().length < 3
     ) {
+      if (window.pendo) {
+        window.pendo.track('checkout_validation_failed', {
+          failureReason: 'incomplete_payment',
+          hasShippingAddress: true,
+          itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
+          cartTotal: total,
+        })
+      }
       setError('Please fill in complete payment details (demo — no charge made).')
       return
     }
@@ -63,6 +79,19 @@ export default function Checkout() {
       placedAt: new Date().toISOString(),
     }
     sessionStorage.setItem('pieriot-last-order', JSON.stringify(order))
+    if (window.pendo) {
+      window.pendo.track('order_placed', {
+        orderId,
+        itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
+        uniqueLineItems: items.length,
+        subtotal,
+        shippingCost: shipping,
+        total,
+        freeShipping: shipping === 0,
+        shippingState: profile.state,
+        shippingCity: profile.city,
+      })
+    }
     clearCart()
     navigate(`/success/${orderId}`)
   }
