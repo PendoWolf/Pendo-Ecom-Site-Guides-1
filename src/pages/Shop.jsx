@@ -32,25 +32,24 @@ export default function Shop() {
     return list
   }, [query, category, sort, maxPrice])
 
-  const isInitialRender = useRef(true)
+  const searchTimerRef = useRef(null)
   useEffect(() => {
-    if (isInitialRender.current) {
-      isInitialRender.current = false
-      return
-    }
-    const timer = setTimeout(() => {
-      if (window.pendo) {
-        window.pendo.track('product_search_executed', {
+    clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      const hasActiveFilters =
+        query.trim() !== '' || category !== 'All' || sort !== 'featured' || maxPrice < 40
+      if (hasActiveFilters) {
+        pendo.track('product_search_executed', {
           query: query.trim(),
           category,
-          sortBy: sort,
+          sort,
           maxPrice,
           resultsCount: filtered.length,
           totalProducts: pies.length,
         })
       }
     }, 500)
-    return () => clearTimeout(timer)
+    return () => clearTimeout(searchTimerRef.current)
   }, [query, category, sort, maxPrice, filtered.length])
 
   return (

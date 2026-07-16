@@ -79,19 +79,16 @@ export default function Checkout() {
       placedAt: new Date().toISOString(),
     }
     sessionStorage.setItem('pieriot-last-order', JSON.stringify(order))
-    if (window.pendo) {
-      window.pendo.track('order_placed', {
-        orderId,
-        itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
-        uniqueLineItems: items.length,
-        subtotal,
-        shippingCost: shipping,
-        total,
-        freeShipping: shipping === 0,
-        shippingState: profile.state,
-        shippingCity: profile.city,
-      })
-    }
+    pendo.track('order_placed', {
+      orderId,
+      itemCount: items.length,
+      subtotal,
+      shipping,
+      total,
+      hasDeliveryNotes: Boolean(profile.deliveryNotes),
+      shippingCity: profile.city,
+      shippingState: profile.state,
+    })
     clearCart()
     navigate(`/success/${orderId}`)
   }

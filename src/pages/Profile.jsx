@@ -35,6 +35,13 @@ export default function Profile() {
       })
     }
     setSaved(true)
+    pendo.track('shipping_profile_saved', {
+      hasPhone: Boolean(form.phone),
+      hasAddress2: Boolean(form.address2),
+      hasDeliveryNotes: Boolean(form.deliveryNotes),
+      city: form.city,
+      state: form.state,
+    })
   }
 
   return (
