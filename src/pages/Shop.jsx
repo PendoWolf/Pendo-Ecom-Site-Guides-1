@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ProductCard from '../components/ProductCard'
 import { categories, pies } from '../data/pies'
 
@@ -31,6 +31,26 @@ export default function Shop() {
 
     return list
   }, [query, category, sort, maxPrice])
+
+  const searchTimerRef = useRef(null)
+  useEffect(() => {
+    clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      const hasActiveFilters =
+        query.trim() !== '' || category !== 'All' || sort !== 'featured' || maxPrice < 40
+      if (hasActiveFilters) {
+        pendo.track('product_search_executed', {
+          query: query.trim(),
+          category,
+          sort,
+          maxPrice,
+          resultsCount: filtered.length,
+          totalProducts: pies.length,
+        })
+      }
+    }, 500)
+    return () => clearTimeout(searchTimerRef.current)
+  }, [query, category, sort, maxPrice, filtered.length])
 
   return (
     <div className="page shop">

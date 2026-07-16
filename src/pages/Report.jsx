@@ -27,6 +27,10 @@ export default function Report() {
     const reports = JSON.parse(localStorage.getItem('pieriot-reports') || '[]')
     reports.push({ ...form, at: new Date().toISOString() })
     localStorage.setItem('pieriot-reports', JSON.stringify(reports))
+    pendo.track('feedback_report_submitted', {
+      topic: form.topic,
+      messageLength: form.message.length,
+    })
     setSent(true)
   }
 
