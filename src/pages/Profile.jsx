@@ -15,6 +15,25 @@ export default function Profile() {
   const onSubmit = (e) => {
     e.preventDefault()
     updateProfile(form)
+    if (window.pendo) {
+      const fieldsCompleted = [
+        form.fullName, form.email, form.phone,
+        form.address1, form.address2, form.city,
+        form.state, form.zip, form.deliveryNotes,
+      ].filter((v) => v && v.trim()).length
+      window.pendo.track('profile_saved', {
+        hasFullName: !!form.fullName?.trim(),
+        hasEmail: !!form.email?.trim(),
+        hasPhone: !!form.phone?.trim(),
+        hasAddress1: !!form.address1?.trim(),
+        hasAddress2: !!form.address2?.trim(),
+        hasCity: !!form.city?.trim(),
+        hasState: !!form.state?.trim(),
+        hasZip: !!form.zip?.trim(),
+        hasDeliveryNotes: !!form.deliveryNotes?.trim(),
+        fieldsCompleted,
+      })
+    }
     setSaved(true)
     pendo.track('shipping_profile_saved', {
       hasPhone: Boolean(form.phone),
