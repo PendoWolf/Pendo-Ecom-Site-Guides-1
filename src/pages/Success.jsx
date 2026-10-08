@@ -25,6 +25,10 @@ export default function Success() {
           We’re packing your pies with chilled cold packs for overnight delivery. A receipt is on
           its way to {matches ? order.shippingAddress.email || 'your inbox' : 'your inbox'}.
         </p>
+        <p className="success__next">
+          Refrigerate on arrival. Once your box has landed, we’ll ask how the crust, filling and
+          cold packs held up.
+        </p>
 
         {matches && (
           <div className="success__summary">
@@ -42,9 +46,6 @@ export default function Success() {
         <div className="hero__actions">
           <Link to="/shop" className="btn btn--primary">
             Order another pie
-          </Link>
-          <Link to="/poll" className="btn btn--secondary">
-            Rate your experience
           </Link>
         </div>
       </div>

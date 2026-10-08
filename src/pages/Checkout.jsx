@@ -79,7 +79,22 @@ export default function Checkout() {
       placedAt: new Date().toISOString(),
     }
     sessionStorage.setItem('pieriot-last-order', JSON.stringify(order))
-    pendo.track('order_placed', {
+    let orders = []
+    try {
+      const saved = JSON.parse(localStorage.getItem('pieriot-orders') || '[]')
+      orders = Array.isArray(saved) ? saved : []
+    } catch {
+      orders = []
+    }
+    orders.push({
+      orderId,
+      placedAt: order.placedAt,
+      itemCount: items.length,
+      total,
+      ratedAt: null,
+    })
+    localStorage.setItem('pieriot-orders', JSON.stringify(orders.slice(-10)))
+    window.pendo.track('order_placed', {
       orderId,
       itemCount: items.length,
       subtotal,

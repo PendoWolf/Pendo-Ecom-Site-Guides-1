@@ -13,9 +13,10 @@ function getOrCreateVisitorId() {
   return id
 }
 
-pendo.initialize({
+window.pendo.initialize({
   visitor: {
     id: getOrCreateVisitorId(),
+    isAutomated: navigator.webdriver === true,
   },
 })
 

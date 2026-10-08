@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+
+const HOUR_MS = 60 * 60 * 1000
 
 const questions = [
   {
@@ -24,6 +27,8 @@ const questions = [
 ]
 
 export default function Poll() {
+  const [searchParams] = useSearchParams()
+  const orderId = searchParams.get('order') || null
   const [answers, setAnswers] = useState({})
   const [submitted, setSubmitted] = useState(false)
 
@@ -32,14 +37,35 @@ export default function Poll() {
   const onSubmit = (e) => {
     e.preventDefault()
     if (!allAnswered) return
+    const at = new Date().toISOString()
     const existing = JSON.parse(localStorage.getItem('pieriot-polls') || '[]')
-    existing.push({ answers, at: new Date().toISOString() })
+    existing.push({ answers, orderId, at })
     localStorage.setItem('pieriot-polls', JSON.stringify(existing))
-    pendo.track('experience_rating_submitted', {
+
+    let orders = []
+    try {
+      const saved = JSON.parse(localStorage.getItem('pieriot-orders') || '[]')
+      orders = Array.isArray(saved) ? saved : []
+    } catch {
+      orders = []
+    }
+    const order = orderId ? orders.find((entry) => entry?.orderId === orderId) : null
+    if (order) {
+      order.ratedAt = at
+      localStorage.setItem('pieriot-orders', JSON.stringify(orders))
+    }
+    const hoursSinceOrder = order
+      ? Math.round((Date.now() - Date.parse(order.placedAt)) / HOUR_MS)
+      : null
+
+    window.pendo.track('experience_rating_submitted', {
       crustRating: answers.crust,
       flavorRating: answers.flavor,
       shippingRating: answers.shipping,
       reorderIntent: answers.reorder,
+      orderId,
+      entryPoint: orderId ? 'delivered_prompt' : 'direct',
+      hoursSinceOrder,
     })
     setSubmitted(true)
   }
