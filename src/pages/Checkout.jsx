@@ -1,8 +1,37 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { formatPrice } from '../data/pies'
 import { useCart } from '../context/CartContext'
 import { useProfile } from '../context/ProfileContext'
+
+const paymentFields = ['cardName', 'cardNumber', 'expiry', 'cvc']
+
+function validateField(name, value) {
+  const trimmed = value.trim()
+  if (name === 'cardName') {
+    return trimmed ? '' : 'Enter the name on your card.'
+  }
+  if (name === 'cardNumber') {
+    const digits = trimmed.replace(/[\s-]/g, '')
+    if (!digits) return 'Enter your card number.'
+    return /^\d{12,19}$/.test(digits) ? '' : 'Card number should be 12–19 digits.'
+  }
+  if (name === 'expiry') {
+    if (!trimmed) return 'Enter the expiry date (MM/YY).'
+    return /^(0[1-9]|1[0-2])\/?\d{2}$/.test(trimmed) ? '' : 'Use the MM/YY format, e.g. 08/27.'
+  }
+  if (name === 'cvc') {
+    if (!trimmed) return 'Enter the 3- or 4-digit security code.'
+    return /^\d{3,4}$/.test(trimmed) ? '' : 'CVC should be 3 or 4 digits.'
+  }
+  return ''
+}
+
+function focusField(field) {
+  if (!field) return
+  field.scrollIntoView({ block: 'center' })
+  field.focus({ preventScroll: true })
+}
 
 export default function Checkout() {
   const navigate = useNavigate()
@@ -14,8 +43,18 @@ export default function Checkout() {
     expiry: '',
     cvc: '',
   })
-  const [error, setError] = useState('')
+  const [addressForm, setAddressForm] = useState({
+    fullName: profile.fullName,
+    email: profile.email,
+    address1: profile.address1,
+    address2: profile.address2,
+    city: profile.city,
+    state: profile.state,
+    zip: profile.zip,
+  })
+  const [fieldErrors, setFieldErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  const addressFormRef = useRef(null)
 
   const shipping = subtotal >= 75 || subtotal === 0 ? 0 : 8
   const total = subtotal + shipping
@@ -32,9 +71,46 @@ export default function Checkout() {
     )
   }
 
+  const onPaymentChange = (e) => {
+    const { name, value } = e.target
+    setPayment((prev) => ({ ...prev, [name]: value }))
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: validateField(name, value) }))
+    }
+  }
+
+  const onPaymentBlur = (e) => {
+    const { name, value } = e.target
+    setFieldErrors((prev) => ({ ...prev, [name]: validateField(name, value) }))
+  }
+
+  const onAddressChange = (field) => (e) => {
+    setAddressForm((prev) => ({ ...prev, [field]: e.target.value }))
+  }
+
+  const handleAddressSubmit = (e) => {
+    e.preventDefault()
+    updateProfile(addressForm)
+    setFieldErrors((prev) => ({ ...prev, address: '' }))
+    if (!payment.cardName.trim()) {
+      // Pre-fill the card name, as returning from the Profile page used to.
+      setPayment((prev) => ({ ...prev, cardName: addressForm.fullName }))
+      setFieldErrors((prev) => ({ ...prev, cardName: '' }))
+    }
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    setError('')
+
+    const errors = {}
+    paymentFields.forEach((name) => {
+      const message = validateField(name, payment[name])
+      if (message) errors[name] = message
+    })
+    if (!hasShippingAddress) {
+      errors.address = 'Save your shipping address to place your order.'
+    }
+    setFieldErrors(errors)
 
     if (!hasShippingAddress) {
       if (window.pendo) {
@@ -45,16 +121,15 @@ export default function Checkout() {
           cartTotal: total,
         })
       }
-      setError('Save a complete shipping address on your profile before placing an order.')
+      const form = addressFormRef.current
+      if (form) {
+        focusField(form.querySelector(':invalid') || form.querySelector('button[type="submit"]'))
+      }
       return
     }
 
-    if (
-      !payment.cardName.trim() ||
-      payment.cardNumber.replace(/\s/g, '').length < 12 ||
-      !payment.expiry.trim() ||
-      payment.cvc.trim().length < 3
-    ) {
+    const firstInvalid = paymentFields.find((name) => errors[name])
+    if (firstInvalid) {
       if (window.pendo) {
         window.pendo.track('checkout_validation_failed', {
           failureReason: 'incomplete_payment',
@@ -63,7 +138,7 @@ export default function Checkout() {
           cartTotal: total,
         })
       }
-      setError('Please fill in complete payment details (demo — no charge made).')
+      focusField(e.currentTarget.elements.namedItem(firstInvalid))
       return
     }
 
@@ -79,16 +154,18 @@ export default function Checkout() {
       placedAt: new Date().toISOString(),
     }
     sessionStorage.setItem('pieriot-last-order', JSON.stringify(order))
-    pendo.track('order_placed', {
-      orderId,
-      itemCount: items.length,
-      subtotal,
-      shipping,
-      total,
-      hasDeliveryNotes: Boolean(profile.deliveryNotes),
-      shippingCity: profile.city,
-      shippingState: profile.state,
-    })
+    if (window.pendo) {
+      window.pendo.track('order_placed', {
+        orderId,
+        itemCount: items.length,
+        subtotal,
+        shipping,
+        total,
+        hasDeliveryNotes: Boolean(profile.deliveryNotes),
+        shippingCity: profile.city,
+        shippingState: profile.state,
+      })
+    }
     clearCart()
     navigate(`/success/${orderId}`)
   }
@@ -100,14 +177,16 @@ export default function Checkout() {
         <p>Confirm shipping, enter payment, and let the pies start their journey.</p>
       </header>
 
-      <form className="checkout__layout" onSubmit={handleSubmit}>
+      <div className="checkout__layout">
         <div className="checkout__forms">
           <section className="panel">
             <div className="panel__head">
               <h2>Shipping address</h2>
-              <Link to="/profile" className="text-link">
-                Edit profile
-              </Link>
+              {hasShippingAddress && (
+                <Link to="/profile" className="text-link">
+                  Edit profile
+                </Link>
+              )}
             </div>
             {hasShippingAddress ? (
               <address className="checkout__address">
@@ -128,12 +207,96 @@ export default function Checkout() {
                 )}
               </address>
             ) : (
-              <div className="callout">
-                <p>No shipping address on file yet.</p>
-                <Link to="/profile" className="btn btn--secondary btn--sm">
-                  Set shipping address
-                </Link>
-              </div>
+              <form
+                ref={addressFormRef}
+                className="checkout__address-form"
+                onSubmit={handleAddressSubmit}
+              >
+                <p className="muted">
+                  No shipping address on file yet — add it here and we’ll save it to your profile.
+                </p>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Full name</span>
+                    <input
+                      value={addressForm.fullName}
+                      onChange={onAddressChange('fullName')}
+                      autoComplete="name"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={addressForm.email}
+                      onChange={onAddressChange('email')}
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <label className="field">
+                  <span>Address line 1</span>
+                  <input
+                    value={addressForm.address1}
+                    onChange={onAddressChange('address1')}
+                    autoComplete="address-line1"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Address line 2</span>
+                  <input
+                    value={addressForm.address2}
+                    onChange={onAddressChange('address2')}
+                    autoComplete="address-line2"
+                  />
+                </label>
+
+                <div className="field-row field-row--3">
+                  <label className="field">
+                    <span>City</span>
+                    <input
+                      value={addressForm.city}
+                      onChange={onAddressChange('city')}
+                      autoComplete="address-level2"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>State</span>
+                    <input
+                      value={addressForm.state}
+                      onChange={onAddressChange('state')}
+                      autoComplete="address-level1"
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>ZIP</span>
+                    <input
+                      value={addressForm.zip}
+                      onChange={onAddressChange('zip')}
+                      autoComplete="postal-code"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="checkout__address-actions">
+                  <button type="submit" className="btn btn--secondary btn--sm">
+                    Save shipping address
+                  </button>
+                  {fieldErrors.address && (
+                    <p className="form-error" role="alert">
+                      {fieldErrors.address}
+                    </p>
+                  )}
+                </div>
+              </form>
             )}
 
             <label className="field">
@@ -147,47 +310,92 @@ export default function Checkout() {
             </label>
           </section>
 
-          <section className="panel">
+          <form id="checkout-payment" className="panel" onSubmit={handleSubmit} noValidate>
             <h2>Payment</h2>
             <p className="muted">Demo checkout only — nothing is charged.</p>
             <label className="field">
               <span>Name on card</span>
               <input
+                name="cardName"
                 value={payment.cardName}
-                onChange={(e) => setPayment({ ...payment, cardName: e.target.value })}
+                onChange={onPaymentChange}
+                onBlur={onPaymentBlur}
                 autoComplete="cc-name"
+                required
+                aria-invalid={Boolean(fieldErrors.cardName)}
+                aria-describedby={fieldErrors.cardName ? 'cardName-error' : undefined}
               />
+              {fieldErrors.cardName && (
+                <span id="cardName-error" className="field-error">
+                  {fieldErrors.cardName}
+                </span>
+              )}
             </label>
             <label className="field">
               <span>Card number</span>
               <input
+                name="cardNumber"
                 value={payment.cardNumber}
-                onChange={(e) => setPayment({ ...payment, cardNumber: e.target.value })}
+                onChange={onPaymentChange}
+                onBlur={onPaymentBlur}
                 placeholder="4242 4242 4242 4242"
                 autoComplete="cc-number"
+                inputMode="numeric"
+                maxLength="19"
+                required
+                aria-invalid={Boolean(fieldErrors.cardNumber)}
+                aria-describedby={fieldErrors.cardNumber ? 'cardNumber-error' : undefined}
               />
+              {fieldErrors.cardNumber && (
+                <span id="cardNumber-error" className="field-error">
+                  {fieldErrors.cardNumber}
+                </span>
+              )}
             </label>
             <div className="field-row">
               <label className="field">
                 <span>Expiry</span>
                 <input
+                  name="expiry"
                   value={payment.expiry}
-                  onChange={(e) => setPayment({ ...payment, expiry: e.target.value })}
+                  onChange={onPaymentChange}
+                  onBlur={onPaymentBlur}
                   placeholder="MM/YY"
                   autoComplete="cc-exp"
+                  maxLength="5"
+                  required
+                  aria-invalid={Boolean(fieldErrors.expiry)}
+                  aria-describedby={fieldErrors.expiry ? 'expiry-error' : undefined}
                 />
+                {fieldErrors.expiry && (
+                  <span id="expiry-error" className="field-error">
+                    {fieldErrors.expiry}
+                  </span>
+                )}
               </label>
               <label className="field">
                 <span>CVC</span>
                 <input
+                  name="cvc"
                   value={payment.cvc}
-                  onChange={(e) => setPayment({ ...payment, cvc: e.target.value })}
+                  onChange={onPaymentChange}
+                  onBlur={onPaymentBlur}
                   placeholder="123"
                   autoComplete="cc-csc"
+                  inputMode="numeric"
+                  maxLength="4"
+                  required
+                  aria-invalid={Boolean(fieldErrors.cvc)}
+                  aria-describedby={fieldErrors.cvc ? 'cvc-error' : undefined}
                 />
+                {fieldErrors.cvc && (
+                  <span id="cvc-error" className="field-error">
+                    {fieldErrors.cvc}
+                  </span>
+                )}
               </label>
             </div>
-          </section>
+          </form>
         </div>
 
         <aside className="cart__summary">
@@ -214,12 +422,16 @@ export default function Checkout() {
             <span>Total</span>
             <span>{formatPrice(total)}</span>
           </div>
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" className="btn btn--primary btn--block" disabled={submitting}>
+          <button
+            type="submit"
+            form="checkout-payment"
+            className="btn btn--primary btn--block"
+            disabled={submitting}
+          >
             {submitting ? 'Placing order…' : `Pay ${formatPrice(total)}`}
           </button>
         </aside>
-      </form>
+      </div>
     </div>
   )
 }
